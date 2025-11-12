@@ -1,0 +1,269 @@
+#Install BiocManager 
+#The 'if' statement just ensures that BiocManager is installed safely but I do not NEED to include this conditional statement
+#if (!requireNamespace("BiocManager", quietly = TRUE))
+#  install.packages("BiocManager")
+
+# Install the necessary packages from Bioconductor (DESeq2 and GEOquery)
+#BiocManager::install("GEOquery")
+#BiocManager::install("DESeq2")
+
+# Install Tidyverse from CRAN
+#install.packages("tidyverse")
+
+# Inserted this line for RTools path setup. I'll run this line every time. It's safe to run every time I need to run my entire script
+writeLines('PATH="${RTOOLS45_HOME}\\usr\\bin;${PATH}"', con = "~/.Renviron")
+
+# Load the required libraries
+library(GEOquery)
+library(DESeq2)
+library(tidyverse)
+library(Biobase) #Biobase has the exprs() function that I will soon need
+
+#Locating .txt file that contains the matrix table that I need
+#file_path <- "GSE263334_series_matrix.txt"
+
+# Now I will use the function from the GEOquery package, getGEO(), in order to get the FULL dataset
+#gse <- getGEO("GSE263334", GSEMatrix = TRUE, AnnotGPL = FALSE)
+
+# The getGEO function will return a list of objects.
+# As is the tendency, I will work with the first item in the list, which is the ExpressionSet.
+#expression_data <- gse[[1]]
+
+# Next I will extract the counts matrix (the gene expression numbers) from that ExpressionSet
+#I can use the exprs() function for this
+#counts_matrix <- Biobase::exprs(expression_data)
+
+# I can also extract the metadata table (which is all of the info about the 40 mouse samples) using the pData() function
+#metadata_table <- pData(expression_data)
+
+# Now check the dimensions of the actual counts data:
+#dim(counts_matrix)
+#head(counts_matrix)
+
+#3. Now to create the metadata dataframe
+#I will extract the column names (aka the sample IDs)and determine their genotypes manually 
+#sample_names <- colnames(counts_matrix)
+
+
+
+
+
+
+#That last approach did not work. I am continuing to get [1]  0 40 as my output when I run dim(counts_matrix)
+#This should not happen. Row = 0 and Columns = 40 is incorrect. I should be getting MULTIPLE rows and 40 columns (pertaining to the 40 mouse samples)
+#After several attempts of adjusting the script, it may simply be that the information that I need (the ACTUAL gene expression counts data) is not IN the GSE263334_series_matrix.txt file
+#That file that I was working with (the series matrix file) only had metadata, which is why my counts matrix is empty, showing 0 rows and 40 columns.
+#This may mean that the ACTUAL raw gene expression counts data that I need is actually in SUPPLEMENTARY files that must be downloaded separately.
+
+#So here we go again
+
+# 1. First I'll download the supplementary files containing the actual counts data
+# (again, this is because the standard series_matrix.txt file (GSE263334_series_matrix.txt) for this dataset only contained metadata.
+cat("Downloading supplementary files...\n") #Just adding this for a bit of readability in the console, but this line isn't necessary  
+getGEOSuppFiles("GSE263334")
+# This function, getGEOSuppFiles(), creates a folder named 'GSE263334' in my working directory.
+
+
+
+# Now I need to see a list of the files inside of that new folder to find the EXACT name of the counts file that I need
+#This will display that list:
+cat("Listing downloaded files...\n") #Just adding this for a bit of readability in the console, but this line isn't necessary 
+data_files <- list.files("GSE263334")
+print(data_files)
+
+# Usually when it comes to GEO data, the counts tend to be in a raw data file (e.g., a .csv or .txt).
+# I'll need to look at the output of the above code chunk (the 'data_files' variable)
+
+# After printing the data_files variable, I see that there are actually TWO files inside that are related to the specific mouse samples
+#These seem to be the final results of a differential expression analysis that the researchers have ALREADY done 
+# --> GSE263334_E14_Chd8KI_DESeq2.txt.gz (E14 stage)
+# --> GSE263334_E18_Chd8KI_DESeq2.txt.gz (E18 stage)
+
+
+#I can analyze both. So I will first start with the E14 data (afterwards I will look at the E18 data)
+
+
+#[ANALYZING THE E14 DATA]
+
+#1. I first have to define the path to the specific DESeq2 file that I want to use (which is the E14 data)
+file_path_e14 <- "GSE263334/GSE263334_E14_Chd8KI_DESeq2.txt.gz" # <-- GSE263334 is the folder and GSE263334_E14_Chd8KI_DESeq2.txt.gz is inside of that folder. The folder shows that there are two files. E14 and E18. This specific file contains only the E14 data
+
+# 2. Next, I have to have R read the data. I can use the read_tsv() function from the tidyverse package
+# That is because this file is a TAB-SEPARATED file (meaning that "tabs" or spaces are what's separating the information). This is obvious just by clicking on the file and opening up the file in Notepad
+#You quickly see that it has a header line (meaning that it has column names) and MULTIPLE values underneath each header. It basically already looks like a table, just without the grid lines.
+full_data_e14 <- read_tsv(file_path_e14)
+
+
+#3.[Data Cleaning/Preprocessing]: 
+
+#Set the gene names/IDs as the ROW names
+# The GSE263334_E14_Chd8KI_DESeq2.txt.gz file is the table containing the E14 results from the researchers' differential expression analysis (DESeq2)
+#So I need to now convert it into a data frame and set the gene_ids (the entire first column) as the row names
+e14_results <- full_data_e14 %>%
+  as.data.frame() %>%
+  tibble::column_to_rownames("gene_id") # I'm using the column_to_rownames function from the tibble package
+
+# 4. Time to see if the dimensions of the matrix that we created are correct now. 
+cat("Dimensions of the counts matrix:\n") #Just adding this for a bit of readability in the console, but this line isn't necessary  
+dim(e14_results)
+
+#The output of this dim() function shows that a 17940 x 6 matrix was created (we removed the gene_id column as a numerical column and turned it into a static column that does not contain data. Now those gene IDs are no longer recognized as numbers. Now they are simply the names of the genes)
+#There are 17,940 rows: data for 17,940 different genes.
+#There are 6 columns: baseMean, log2FoldChange, lfcSE, stat, pvalue, and padj (the results of possibly 3 controls and 3 cases).
+
+cat("Head of the data frame:\n") #Just adding this for a bit of readability in the console, but this line isn't necessary 
+print(head(e14_results)) 
+
+View(e14_results)
+
+
+
+# 3. Extract the counts matrix (the actual gene expression numbers)
+# As you can see from clicking on the file, the first column is gene names/IDs and the rest are counts.
+counts_matrix_E14 <- full_data %>%
+  select(-1) %>% # This allows me to select all columns EXCEPT the first one (gene IDs). Gene IDs aren't actual numbers. They're just the "names" of the gene
+  as.data.frame() # This converts the counts matrix to a standard R data frame (for DESeq2 compatibility)
+
+#4. NOW it's time for the gene IDs. 
+#I will set the gene names as the ROW names of the matrix
+rownames(counts_matrix_E14) <- pull(full_data, 1) # This extracts the first column as row names
+
+
+
+#---------------------------------------------------------------------------------------------------------------------------------------------
+#Normally we would prepare the Metadata but we don't have or need metadata. 
+#The files we are working with are NOT the raw counts/numbers. They are the RESULTS of an already performed differential expression analysis
+#Because the analysis has already been done by the researchers, there is no need for metadata to run DESeq2. 
+
+#Therefore the next logical step is to just filter the existing results.
+#---------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+#-------------------------------------------------------------------------------
+# Data Preprocessing: Filtering Results
+#-------------------------------------------------------------------------------
+
+#The researchers have already identified the significantly differentially expressed genes
+#My goal now is to FILTER FOR those genes:
+
+
+#5. Filter for significantly differentially expressed genes (padj < 0.05)
+significant_genes <- e14_results %>%
+  filter(padj < 0.05)
+
+
+#6. Filter for HIGHLY significant and HIGHLY changed genes (padj < 0.01 AND log2FoldChange > 1 or < -1)
+highly_significant_changes <- e14_results %>%
+  filter(padj < 0.01 & abs(log2FoldChange) >= 1)
+
+
+#-------------------------------------------------------------------------------
+# Visualization: Volcano Plot
+#-------------------------------------------------------------------------------
+#When analyzing gene expression (e.g., with DESeq2, edgeR, or limma), two main metrics guide interpretation:
+
+
+#Most Meaningful Gene Expression to Look For: 
+#   ->Fold change:       tells you the magnitude of change
+#   ->Adjusted p-value:  tells you the statistical confidence.
+#   ->*Combine Both*:    large fold change + small padj = biologically meaningful differential expression.
+
+
+#Therefore:
+#   Significant & Upregulated:   padj ≤ 0.05 and log2FC > threshold (e.g., +1).
+#   Significant & Downregulated: padj ≤ 0.05 and log2FC < threshold (e.g., -1).
+#   Non-significant:             padj > 0.05, regardless of fold change.
+#   Borderline cases:            Genes with large fold change but not significant (or vice versa) may still be biologically interesting, but require caution.
+
+
+
+#I now have to create a column in order to easily determine the significant genes necessary for coloring the plot
+e14_results$gene_type <- "Not Significant"
+# Upregulated genes: Fold Change (FC) > 1 AND adjusted p-value < 0.05
+e14_results$gene_type[e14_results$log2FoldChange > 1 & e14_results$padj < 0.05] <- "Upregulated (KI)"
+# Downregulated genes: Fold Change (FC) < -1 AND adjusted p-value < 0.05
+e14_results$gene_type[e14_results$log2FoldChange < -1 & e14_results$padj < 0.05] <- "Downregulated (KI)"
+
+#[NOTE:]
+#Genes with positive fold change are considered upregulated, while those with negative fold change are downregulated.
+
+#-----------------------------------------
+#CREATING THE VOLCANO PLOT (using ggplot2)
+#-----------------------------------------
+
+ggplot(data=e14_results, aes(x=log2FoldChange, y=-log10(padj), color=gene_type)) +
+  geom_point(alpha=0.4, size=1.75) +
+  xlim(c(-5, 5)) + ylim(c(0, 30)) +
+  xlab("log2 Fold Change") + ylab("-log10 adjusted p-value") +
+  ggtitle("Volcano Plot of CHD8 KI vs WT (E14 Data)") +
+  # Make sure the values match the levels of my 'gene_type' variable
+  scale_color_manual(values = c("Downregulated (KI)" = "blue", "Not Significant" = "grey", "Upregulated (KI)" = "red")) +
+  theme_minimal()
+
+
+
+#Importance of my findings:
+#1.) The X-axis (log2 Fold Change): Shows the magnitude of the gene expression change between the control (WT) mice and the experimental (KI) mice. Genes far to the left or right are heavily affected by the Chd8 duplication.
+#2.) The Y-axis (-log10 adjusted p-value): Shows the statistical significance of those changes. The higher the dots are on the plot, the more confident I can be that the change is real, rather than random chance.
+
+#This volcano plot allows me to immediately identify the most biologically meaningful genes: those that are both highly significant (high on the plot) and highly changed (far left/right).
+
+
+#[EXPLANATION]:
+#The metadata is very crucial at this point: 
+#  It tells R which samples are the experimental "cases" (Knock-in [KI]/genetically engineered mice) and which are the "controls" (Wild-Type [WT]/Healthy mice). 
+#DESeq2 needs this information in order to perform the statistical comparison and find genes that are expressed differently between the two groups.
+
+#[NOTE]:
+#The metadata is found in the ORIGINAL series matrix file (GSE263334_series_matrix.txt) that I was initially using in the very beginning. I will need that information again
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 6. Metadata preparation:
+#cat("Loading metadata using GEOquery...\n") #Just adding this for a bit of readability in the console, but this line isn't necessary 
+
+#7. Because I deleted the original GSE263334_series_matrix.txt file (after realizing that the counts data was not in this file and it was only showing a 0 x 40 sized matrix), I will need to retrieve the file again
+#Instead of downloading the file again though, I can simply use the getGEO() function to retrieve the data straight from the GEO repository
+#gse_metadata <- getGEO("GSE263334", GSEMatrix = TRUE, AnnotGPL = FALSE)
+
+
+#8. Extracting the phenotypic data (pData). This data contains all of the information about the samples that we need
+#metadata_table <- pData(gse_metadata[[1]])
+
+#Now we can take a look a the table just to see what it looks like before we proceed
+#View(metadata_table)
+
+#9. Now I need to make sure that the row names of METADATA match the column names of my COUNTS MATRIX (remember, the column names of my counts matrix are all the features OTHER THAN the gene_id)
+# Remember, right now I only care about the E14 samples (which are GSM8189713 to GSM8189718)
+#The rest of the information pertains to the E18 samples, which I am not currently dealing with 
+#e14_samples <- colnames(counts_matrix_E14)
+
+#10. Filter the full metadata table to keep ONLY those six E14 samples
+#e14_metadata <- metadata_table %>%
+#  select(geo_accession, title, genotype:ch1) %>% # Selects relevant columns for clarity
+#  filter(geo_accession %in% e14_samples) %>%
+  # Filter out rows that are not part of the E14 set
+#  filter(!grepl("E18", title)) %>%
+#  as.data.frame() # Convert to data frame
+
+# 11. I can now Check the dimensions and the content of the newly filtered metadata table
+#cat("E14 Metadata dimensions:\n") #Just adding this for a bit of readability in the console 
+#dim(e14_metadata)
+
+#cat("E14 Metadata (first 6 rows):\n") #Just adding this for a bit of readability in the console 
+#print(head(e14_metadata))
+
+#12. Inspect everything. Including the 'title' and 'genotype' columns to confirm groups
+#View(e14_metadata)
+
