@@ -54,9 +54,6 @@ library(Biobase) #Biobase has the exprs() function that I will soon need
 
 
 
-
-
-
 #That last approach did not work. I am continuing to get [1]  0 40 as my output when I run dim(counts_matrix)
 #This should not happen. Row = 0 and Columns = 40 is incorrect. I should be getting MULTIPLE rows and 40 columns (pertaining to the 40 mouse samples)
 #After several attempts of adjusting the script, it may simply be that the information that I need (the ACTUAL gene expression counts data) is not IN the GSE263334_series_matrix.txt file
