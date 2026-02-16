@@ -19,7 +19,7 @@ As a professional with experience in **special education**, my goal was to bridg
 ## Technical Workflow
 1.  **Data Acquisition:** Programmatic retrieval of supplementary DESeq2 results using `GEOquery`.
 2.  **Data Preprocessing:** Cleaning and reformatting matrix structures, mapping gene IDs to row names.
-3.  **Statistical Filtering:** Applying thresholds of $p_{adj} < 0.05$ and $|log_2FoldChange| > 1$.
+3.  **Statistical Filtering:** Applying thresholds of $p_{adj} < 0.05$ and $|log_2FoldChange| ≥ 1$.
 4.  **Visualization:** Generation of a Volcano Plot using `ggplot2` to map the transcriptomic landscape.
 
 ## Results & Discussion Summary
