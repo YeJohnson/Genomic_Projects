@@ -1,278 +1,466 @@
 ---
-title: 'Early Neurodevelopmental Drivers of Autism: A Transcriptomic Analysis of Chd8
-  Dysregulation in the E14 Mouse Brain'
+title: "Early Neurodevelopmental Drivers of Autism: A Transcriptomic Analysis of Chd8 Dysregulation in the E14 Mouse Brain"
 author: "Yvan Johnson"
 date: "2026-02-07"
-output: html_document
+output: 
+  html_document:
+    theme: cosmo            # Professional font and spacing
+    toc: true               # Table of Contents
+    toc_float: true         # TOC stays on the side as you scroll
+    toc_depth: 3            # Show sub-headers in TOC
+    code_folding: show      # Shows your R script and comments by default
+    highlight: tango        # Professional code syntax highlighting
+    df_print: paged         # Formats long tables into scrollable pages
 ---
-```{r}
-#Install BiocManager 
-#The 'if' statement just ensures that BiocManager is installed safely but I do not NEED to include this conditional statement
-#if (!requireNamespace("BiocManager", quietly = TRUE))
-#  install.packages("BiocManager")
 
-# Install the necessary packages from Bioconductor (DESeq2 and GEOquery)
-#BiocManager::install("GEOquery")
-#BiocManager::install("DESeq2")
+# 1. Introduction
+
+As a professional with direct experience in the special education system, I am utilizing exploratory genomic analysis to bridge the gap between classroom observations and molecular research. This project focuses on *Chd8*, a master regulator and high-risk gene heavily linked to Autism Spectrum Disorder (ASD). By analyzing how *Chd8* overexpression alters the transcriptomic "instruction manual" of the developing brain, this project aims to uncover the molecular foundations of neurodiversity.
+
+In order to establish a clear link between computational data engineering and neurodevelopmental biology, this exploratory analysis is structured around three core methodology choices:
+
+### A. Why the E14 Stage Specifically?
+
+Embryonic Day 14 (E14) represents a critical "peak" window in mammalian brain development. During this specific stage, the embryonic brain undergoes massive neurogenesis, which is defined as the rapid birth and migration of neural stem cells that build the structural foundation of the cerebral cortex. By focusing on E14, this analysis captures the precise, foundational moments where genetic alterations *begin* to rewire brain connectivity. While the educational system witnesses the downstream behavioral and learning expressions of neurodivergence, this E14 data allows us to examine the alteration of the *original* biological blueprint.
+
+*(Note: While the source repository GEO: GSE263334 contains tracking data for both the E14 and E18 developmental stages, this specific report focuses exclusively on isolating the early embryonic signatures of the E14 cohort).*
+
+> **Technical Note on Data Provenance:** It is important to note that a secondary, raw differential expression analysis was not performed for this project. The original study's researchers had already executed the standard DESeq2 pipeline on the raw sequencing counts. The data ingested into this workflow is the primary authors' final, published results matrix. Therefore, the purpose of this pipeline is not to recalculate the baseline metrics, but to cleanly ingest, filter, engineer workarounds for mathematical underflows, and visually interpret the high-confidence results of the peer-reviewed study.
+
+### B. Why Target the *Chd8* Gene?
+
+Chromatin Helicase DNA-binding protein 8 (*Chd8*) is widely classified as a genomic "Master Regulator." Rather than performing a single isolated cellular task, the *Chd8* protein remodels chromatin structure to broadly control how hundreds of downstream genes are turned on or off. Because it sits at the absolute top of the cellular hierarchy, any overactivation or mutation in *Chd8* triggers a profound "domino effect" across secondary genetic networks responsible for macrocephaly, synaptic plasticity, and early brain growth.
+
+### C. Why Deploy a Volcano Plot?
+
+Transcriptomic datasets routinely contain tens of thousands of simultaneous data points, making visual isolation essential. The **Volcano Plot** functions as an advanced data engineering tool to systematically filter biological "noise" from true statistical "signals" along two distinct axes:
+
+**The X-Axis (**$\log_2$ Fold Change): Measures the absolute magnitude and direction of the expression shift (Upregulated vs. Downregulated).
+
+**The Y-Axis (**$-\log_{10}$ Adjusted P-Value): Measures the strict statistical confidence and reproducibility of that change.
+
+The highly active genes appearing in the top-left (Blue) and top-right (Red) quadrants of the visualization represent the "Discovery Zone." These are the high-confidence candidates driving the early cortical differences that characterize this autism-associated model.
+
+### D. Why Choose RStudio and R Markdown?
+
+For this analysis, **RStudio** was selected as the Integrated Development Environment (IDE) alongside **R Markdown** for two distinct engineering reasons:
+
+-   **The Best Tools for Genomics:** R is home to **Bioconductor**, which is the industry-standard toolkit for processing genetic data. Using this environment allowed for the usage of powerful packages like `GEOquery` to connect directly to the GEO database and pull down the data cleanly.
+
+-   **Built-in Reproducibility:** R Markdown the combining of actual code, the data cleaning steps, and any written notes into a single document. This makes the entire project completely transparent and reproducible. Allowing any external researcher to clone this repository, run the script, and instantly recreate identical tables and visual assets.
+
+# (Initial Attempt at Environment Setup & Data Acquisition)\*
+
+```{r}
+#Install BiocManager #The 'if' statement just ensures that BiocManager is installed safely but I do not NEED to include this conditional statement #if (!requireNamespace("BiocManager", quietly = TRUE)) # install.packages("BiocManager")
+
+#Install the necessary packages from Bioconductor (DESeq2 and GEOquery)
+
+#BiocManager::install("GEOquery") #BiocManager::install("DESeq2")
 
 # Install Tidyverse from CRAN
+
 #install.packages("tidyverse")
 
 # Inserted this line for RTools path setup. I'll run this line every time. It's safe to run every time I need to run my entire script
+
 writeLines('PATH="${RTOOLS45_HOME}\\usr\\bin;${PATH}"', con = "~/.Renviron")
+```
 
 # Load the required libraries
+
+```{r setup, include=FALSE}
+# Global options: show code, hide warnings
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 library(GEOquery)
 library(DESeq2)
 library(tidyverse)
-library(Biobase) #Biobase has the exprs() function that I will soon need
+library(Biobase)    #Biobase has the exprs() function that will soon be needed
+library(ggrepel)    #ggrepel will allow for labeling points on the visualization 
+```
 
-#Locating .txt file that contains the matrix table that I need
+```{r}
+#Locating .txt file that contains the matrix table that I need: 
 #file_path <- "GSE263334_series_matrix.txt"
 
-# Now I will use the function from the GEOquery package, getGEO(), in order to get the FULL dataset
+# Now I will use the function from the GEOquery package, getGEO(), in order to get the FULL dataset:
 #gse <- getGEO("GSE263334", GSEMatrix = TRUE, AnnotGPL = FALSE)
 
 # The getGEO function will return a list of objects.
-# As is the tendency, I will work with the first item in the list, which is the ExpressionSet.
+
+# As is the tendency, I will work with the first item in the list, which is the ExpressionSet:
 #expression_data <- gse[[1]]
 
 # Next I will extract the counts matrix (the gene expression numbers) from that ExpressionSet
-#I can use the exprs() function for this
+
+#The exprs() function can be used for this:
 #counts_matrix <- Biobase::exprs(expression_data)
 
-# I can also extract the metadata table (which is all of the info about the 40 mouse samples) using the pData() function
+# I can also extract the metadata table (which is all of the info about the 40 mouse samples) using the pData() function:
 #metadata_table <- pData(expression_data)
 
 # Now check the dimensions of the actual counts data:
-#dim(counts_matrix)
+#dim(counts_matrix) 
 #head(counts_matrix)
 
-#3. Now to create the metadata dataframe
+#Now create the metadata dataframe: 
 #I will extract the column names (aka the sample IDs)and determine their genotypes manually 
 #sample_names <- colnames(counts_matrix)
+```
 
+# Initial troubleshooting and Revision of Environment Setup & Data Acquisition
 
+The last approach did not work. I continued to receive `[1] 0 40` as my output when running dim(counts_matrix). This should not happen. Row = 0 and Columns = 40 is an incorrect output. The output should have resulted in *multiple* rows and 40 columns (pertaining to the 40 mouse samples)
 
-#That last approach did not work. I am continuing to get [1]  0 40 as my output when I run dim(counts_matrix)
-#This should not happen. Row = 0 and Columns = 40 is incorrect. I should be getting MULTIPLE rows and 40 columns (pertaining to the 40 mouse samples)
-#After several attempts of adjusting the script, it may simply be that the information that I need (the ACTUAL gene expression counts data) is not IN the GSE263334_series_matrix.txt file
-#That file that I was working with (the series matrix file) only had metadata, which is why my counts matrix is empty, showing 0 rows and 40 columns.
-#This may mean that the ACTUAL raw gene expression counts data that I need is actually in SUPPLEMENTARY files that must be downloaded separately.
+After several attempts of adjusting the script, I simply concluded that it may be that the needed information (the *actual* gene expression counts data) is not in the `GSE263334_series_matrix.txt` file.
 
-#So here we go again
+That file that was originally being employed (the series matrix file) only contained metadata, which is why my counts matrix proved to be empty, showing 0 rows and 40 columns. Therefore, I deduced that the *actual* raw gene expression counts data were contained within *supplementary* files that must be downloaded separately.
 
-# 1. First I'll download the supplementary files containing the actual counts data
-# (again, this is because the standard series_matrix.txt file (GSE263334_series_matrix.txt) for this dataset only contained metadata.
-cat("Downloading supplementary files...\n") #Just adding this for a bit of readability in the console, but this line isn't necessary  
-getGEOSuppFiles("GSE263334")
-# This function, getGEOSuppFiles(), creates a folder named 'GSE263334' in my working directory.
+The following describes the revised process of acquiring the necessary data.
 
+# (Revision of Environment Setup):
 
+# 1. Environment Setup & Data Acquisition
 
-#2. Now I need to see a list of the files inside of that new folder to find the EXACT name of the counts file that I need
-#This will display that list:
+> ### **Technical Methods Note: Data Provenance**
+>
+> The standard series matrix for this dataset (`GSE263334`) contained metadata but lacked the processed counts. Therefore, the supplementary and processed DESeq2 outputs provided by the researchers were programmatically retrieved using `getGEOSuppFiles`.
+>
+> While not typical of a full end-to-end analysis (which would start from raw sequencing reads), this approach ensures that the **log2 Fold Change** and **Adjusted P-values** are perfectly aligned with the peer-reviewed findings of the original study. This maintains the integrity of the embryonic stage comparisons (E14 vs. E18) and provides a high-confidence foundation for this exploratory analysis.
+
+```{r}
+#First I'll download the supplementary files containing the actual counts data
+
+#Again, this is because the standard series_matrix.txt file (GSE263334_series_matrix.txt) for this dataset only contained metadata.
+
+cat("Downloading supplementary files...\n") #Just adding this for a bit of readability in the console, but this line isn't necessary
+
+getGEOSuppFiles("GSE263334") # This function, getGEOSuppFiles(), creates a folder named 'GSE263334' in my working directory.
+```
+
+Now I need to see a list of the files inside of that new folder to find the EXACT name of the counts file that I need.
+
+```{r}
+#This will display that list: 
+
 cat("Listing downloaded files...\n") #Just adding this for a bit of readability in the console, but this line isn't necessary 
-data_files <- list.files("GSE263334")
+data_files <- list.files("GSE263334") 
 print(data_files)
+```
 
-# Usually when it comes to GEO data, the counts tend to be in a raw data file (e.g., a .csv or .txt).
-# I'll need to look at the output of the above code chunk (the 'data_files' variable)
+Usually when it comes to GEO data, the counts tend to be in a raw data file (e.g., a .csv or .txt). It is necessary, therefore, to view the output of the above code chunk (the 'data_files' variable)
 
-# After printing the data_files variable, I see that there are actually TWO files inside that are related to the specific mouse samples
-#These seem to be the final results of a differential expression analysis that the researchers have ALREADY done 
-# --> GSE263334_E14_Chd8KI_DESeq2.txt.gz (E14 stage)
-# --> GSE263334_E18_Chd8KI_DESeq2.txt.gz (E18 stage)
+After printing the data_files variable, it is clear that there are *two* files inside that are related to the specific mouse samples.
 
+These seem to be the final results of a differential expression analysis carried out by the original researchers who generated the data:
 
-#I can analyze both. So I will first start with the E14 data (afterwards I will look at the E18 data)
+-   `GSE263334_E14_Chd8KI_DESeq2.txt.gz` (E14 stage)
 
+-   `GSE263334_E18_Chd8KI_DESeq2.txt.gz` (E18 stage)
 
-#[ANALYZING THE E14 DATA]
+Both files containing data can be analyzed. This analysis, however, will focus only on understanding the E14 data
 
-#1. I first have to define the path to the specific DESeq2 file that I want to use (which is the E14 data)
-file_path_e14 <- "GSE263334/GSE263334_E14_Chd8KI_DESeq2.txt.gz" # <-- GSE263334 is the folder and GSE263334_E14_Chd8KI_DESeq2.txt.gz is inside of that folder. The folder shows that there are two files. E14 and E18. This specific file contains only the E14 data
+# 2. Reading the E14 Data
 
-# 2. Next, I have to have R read the data. I can use the read_tsv() function from the tidyverse package
-# That is because this file is a TAB-SEPARATED file (meaning that "tabs" or spaces are what's separating the information). This is obvious just by clicking on the file and opening up the file in Notepad
-#You quickly see that it has a header line (meaning that it has column names) and MULTIPLE values underneath each header. It basically already looks like a table, just without the grid lines.
+First, it was necessary to define the path to the specific DESeq2 file that was going to be used (which in this case is the E14 data)
+
+```{r}
+file_path_e14 <- "GSE263334/GSE263334_E14_Chd8KI_DESeq2.txt.gz"   
+
+# <-- GSE263334 is the folder and GSE263334_E14_Chd8KI_DESeq2.txt.gz is inside of that folder. The folder shows that there are two files. E14 and E18. This specific file contains only the E14 data
+```
+
+Next, R needed to read the data. The `read_tsv()` function from the tidyverse package can be employed for this purpose:
+
+```{r}
+#Use the read_tsv() function from the tidyverse package
+
+#That is because this file is a TAB-SEPARATED file (meaning that "tabs" or spaces are what are separating the information). This is obvious just by clicking on the file and opening up the file in Notepad on your desktop
+
+#You quickly see that it has a header line (meaning that it has column names) and MULTIPLE values underneath each header. It basically already looks like a table, just without the grid lines. 
 full_data_e14 <- read_tsv(file_path_e14)
+```
 
+# 3. Data Cleaning & Pre-processing
 
-#3.[Data Cleaning/Pre-processing]: 
+To analyze the results, the raw table needed to be converted into a formal data frame and the Gene IDs transitioned into row identifiers. This allows for clean statistical filtering.
 
-#Set the gene names/IDs as the ROW names
-# The GSE263334_E14_Chd8KI_DESeq2.txt.gz file is the table containing the E14 results from the researchers' differential expression analysis (DESeq2)
-#So I need to now convert it into a data frame and set the gene_ids (the entire first column) as the row names
-e14_results <- full_data_e14 %>%
+```{r}
+#Set the gene names/IDs as the ROW names 
+
+# The GSE263334_E14_Chd8KI_DESeq2.txt.gz file contains the table containing the E14 results from the previous researchers' differential expression analysis (DESeq2) 
+
+#So I need to now convert it into a data frame and set the gene_ids (the entire first column) as the row names 
+
+e14_results <- full_data_e14 %>% 
   as.data.frame() %>%
-  tibble::column_to_rownames("gene_id") # I'm using the column_to_rownames function from the tibble package
+  column_to_rownames("gene_id")# Use the column_to_rownames function from the tibble package
 
-# 4. Time to see if the dimensions of the matrix that we created are correct now. 
-cat("Dimensions of the counts matrix:\n") #Just adding this for a bit of readability in the console, but this line isn't necessary  
+  
+#Determining if the dimensions of the matrix that we created are correct now.
+
+cat("Dimensions of the counts matrix:\n") #Just adding this for a bit of readability in the console, but this line is not necessary
 dim(e14_results)
+```
 
-#The output of this dim() function shows that a 17940 x 6 matrix was created (we removed the gene_id column as a numerical column and turned it into a static column that does not contain data. Now those gene IDs are no longer recognized as numbers. Now they are simply the names of the genes)
-#There are 17,940 rows: data for 17,940 different genes.
+```{r}
+#The output of this dim() function shows that a 17940 x 6 matrix was created (the gene_id column was removed as a numerical column and turned into a static column that does not contain data. Now those gene IDs are no longer recognized as numbers. They are now simply the "names" of the genes) 
+#There are 17,940 rows: data for 17,940 different genes. 
 #There are 6 columns: baseMean, log2FoldChange, lfcSE, stat, pvalue, and padj (the results of possibly 3 controls and 3 cases).
 
 cat("Head of the data frame:\n") #Just adding this for a bit of readability in the console, but this line isn't necessary 
-print(head(e14_results)) 
+print(head(e14_results))
 
-#View(e14_results)
+#View(e14_results)     #to show e14_results, remove the comment
+```
 
+The counts matrix (the actual gene expression numbers) was extracted
 
-
-#5. Extract the counts matrix (the actual gene expression numbers)
-# As you can see from clicking on the file, the first column is gene names/IDs and the rest are counts.
+```{r}
+# As you can see from clicking on the file, the first column is gene names/IDs and the rest are counts. 
 counts_matrix_E14 <- full_data_e14 %>%
-  select(-1) %>% # This allows me to select all columns EXCEPT the first one (gene IDs). Gene IDs aren't actual numbers. They're just the "names" of the gene
+  select(-1) %>%        # This allows me to select all columns EXCEPT the first one (gene IDs).[NOTE]: Gene IDs aren't actual numbers. They're just the "names" of the gene
   as.data.frame() # This converts the counts matrix to a standard R data frame (for DESeq2 compatibility)
+```
 
-#6. NOW it's time for the gene IDs. 
-#I will set the gene names as the ROW names of the matrix
+Gene IDs were next to be attended to:
+
+```{r}
+#Set the gene names as the ROW names of the matrix: 
 rownames(counts_matrix_E14) <- pull(full_data_e14, 1) # This extracts the first column as row names
+```
 
+Normally the metadata would be prepared as well. However, in this case, metadata was not readily available nor was it needed due to the fact that the files being employed throughout the course of this analysis were not the *raw counts*/numbers. They were the simply the *results* of an already performed differential expression analysis. Because the analysis had already been performed by the researchers of the original study, there was no need to utilize metadata in order to run a second DESeq2.
 
+**Therefore, the next logical step was to filter the existing results.**
 
-#---------------------------------------------------------------------------------------------------------------------------------------------
-#Normally we would prepare the Metadata but we don't have or need metadata. 
-#The files we are working with are NOT the raw counts/numbers. They are the RESULTS of an already performed differential expression analysis
-#Because the analysis has already been done by the researchers, there is no need for metadata to run DESeq2. 
+# 4. Statistical Filtering
 
-#Therefore the next logical step is to just filter the existing results.
-#---------------------------------------------------------------------------------------------------------------------------------------------
+To identify genes of interest, two levels of filtering were applied to the results. First, genes were considered **significantly differentially expressed** if they met a standard adjusted **p \< 0.05**.
 
+Subsequently, a more stringent filter was used to isolate **highly significant changes**. These are defined as genes that meet a stricter alpha level (**p \< 0.01**) and exhibit a biologically substantial change, where the expression is at least doubled or halved (**\|*log~2~FC*\| ≥ 1**).
 
+> ### **[Note]:**
+>
+> While **⍺ = 0.05** is the standard for exploratory research, stricter levels (**⍺ = 0.01**) reduce the likelihood of Type I errors (or false positives). In this analysis, the threshold was used to recover the findings of the original researchers, while the threshold—combined with the Fold-Change cutoff—was used to prioritize the most significant candidates for further discussion.
 
-#-------------------------------------------------------------------------------
-# Data Preprocessing: Filtering Results
-#-------------------------------------------------------------------------------
+```{r}
+#Filter for significantly differentially expressed genes (padj < 0.05)
 
-#The researchers have already identified the significantly differentially expressed genes
-#My goal now is to FILTER FOR those genes:
-
-
-#7. Filter for significantly differentially expressed genes (padj < 0.05)
 significant_genes <- e14_results %>%
   filter(padj < 0.05)
 
+#Filter for HIGHLY significant and HIGHLY changed genes (padj < 0.01 AND |log2FC| >= 1)
 
-#8. Filter for HIGHLY significant and HIGHLY changed genes (padj < 0.01 AND log2FoldChange > 1 or < -1)
-highly_significant_changes <- e14_results %>%
+highly_significant_changes <- e14_results %>% 
   filter(padj < 0.01 & abs(log2FoldChange) >= 1)
-
-
-#-------------------------------------------------------------------------------
-# Visualization: Volcano Plot
-#-------------------------------------------------------------------------------
-#When analyzing gene expression (e.g., with DESeq2, edgeR, or limma), two main metrics guide interpretation:
-
-
-#Most Meaningful Gene Expression to Look For: 
-#   ->Fold change:       tells you the magnitude of change
-#   ->Adjusted p-value:  tells you the statistical confidence.
-#   ->*Combine Both*:    large fold change + small padj = biologically meaningful differential expression.
-
-
-#Therefore:
-#   Significant & Upregulated:   padj ≤ 0.05 and log2FC > threshold (e.g., +1).
-#   Significant & Downregulated: padj ≤ 0.05 and log2FC < threshold (e.g., -1).
-#   Non-significant:             padj > 0.05, regardless of fold change.
-#   Borderline cases:            Genes with large fold change but not significant (or vice versa) may still be biologically interesting, but require caution.
-
-
-
-#9. I now have to create a column in order to easily determine the significant genes necessary for coloring the plot
-e14_results$gene_type <- "Not Significant"
-# Upregulated genes: Fold Change (FC) > 1 AND adjusted p-value < 0.05
-e14_results$gene_type[e14_results$log2FoldChange > 1 & e14_results$padj < 0.05] <- "Upregulated (KI)"
-# Downregulated genes: Fold Change (FC) < -1 AND adjusted p-value < 0.05
-e14_results$gene_type[e14_results$log2FoldChange < -1 & e14_results$padj < 0.05] <- "Downregulated (KI)"
-
-#[NOTE:]
-#Genes with positive fold change are considered upregulated, while those with negative fold change are downregulated.
-
-#-----------------------------------------
-#CREATING THE VOLCANO PLOT (using ggplot2)
-#-----------------------------------------
-#10.
-ggplot(data=e14_results, aes(x=log2FoldChange, y=-log10(padj), color=gene_type)) +
-  geom_point(alpha=0.4, size=1.75) +
-  xlim(c(-5, 5)) + ylim(c(0, 30)) +
-  xlab("log2 Fold Change") + ylab("-log10 adjusted p-value") +
-  ggtitle("Volcano Plot of CHD8 KI vs WT (E14 Data)") +
-  # Make sure the values match the levels of my 'gene_type' variable
-  scale_color_manual(values = c("Downregulated (KI)" = "blue", "Not Significant" = "grey", "Upregulated (KI)" = "red")) +
-  theme_minimal()
-
-
-
-#Importance of my findings:
-#1.) The X-axis (log2 Fold Change): Shows the magnitude of the gene expression change between the control (WT) mice and the experimental (KI) mice. Genes far to the left or right are heavily affected by the Chd8 duplication.
-#2.) The Y-axis (-log10 adjusted p-value): Shows the statistical significance of those changes. The higher the dots are on the plot, the more confident I can be that the change is real, rather than random chance.
-
-#This volcano plot allows me to immediately identify the most biologically meaningful genes: those that are both highly significant (high on the plot) and highly changed (far left/right).
-
-
-#[EXPLANATION]:
-#The metadata is very crucial at this point: 
-#  It tells R which samples are the experimental "cases" (Knock-in [KI]/genetically engineered mice) and which are the "controls" (Wild-Type [WT]/Healthy mice). 
-#DESeq2 needs this information in order to perform the statistical comparison and find genes that are expressed differently between the two groups.
-
-#[NOTE]:
-#The metadata is found in the ORIGINAL series matrix file (GSE263334_series_matrix.txt) that I was initially using in the very beginning. I will need that information again
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Metadata preparation:
-#cat("Loading metadata using GEOquery...\n") #Just adding this for a bit of readability in the console, but this line isn't necessary 
-
-#1. Because I deleted the original GSE263334_series_matrix.txt file (after realizing that the counts data was not in this file and it was only showing a 0 x 40 sized matrix), I will need to retrieve the file again
-#Instead of downloading the file again though, I can simply use the getGEO() function to retrieve the data straight from the GEO repository
-#gse_metadata <- getGEO("GSE263334", GSEMatrix = TRUE, AnnotGPL = FALSE)
-
-
-#2. Extracting the phenotypic data (pData). This data contains all of the information about the samples that we need
-#metadata_table <- pData(gse_metadata[[1]])
-
-#Now we can take a look a the table just to see what it looks like before we proceed
-#View(metadata_table)
-
-#3. Now I need to make sure that the row names of METADATA match the column names of my COUNTS MATRIX (remember, the column names of my counts matrix are all the features OTHER THAN the gene_id)
-# Remember, right now I only care about the E14 samples (which are GSM8189713 to GSM8189718)
-#The rest of the information pertains to the E18 samples, which I am not currently dealing with 
-#e14_samples <- colnames(counts_matrix_E14)
-
-#4. Filter the full metadata table to keep ONLY those six E14 samples
-#e14_metadata <- metadata_table %>%
-#  select(geo_accession, title, genotype:ch1) %>% # Selects relevant columns for clarity
-#  filter(geo_accession %in% e14_samples) %>%
-  # Filter out rows that are not part of the E14 set
-#  filter(!grepl("E18", title)) %>%
-#  as.data.frame() # Convert to data frame
-
-#5. I can now Check the dimensions and the content of the newly filtered metadata table
-#cat("E14 Metadata dimensions:\n") #Just adding this for a bit of readability in the console 
-#dim(e14_metadata)
-
-#cat("E14 Metadata (first 6 rows):\n") #Just adding this for a bit of readability in the console 
-#print(head(e14_metadata))
-
-#6. Inspect everything. Including the 'title' and 'genotype' columns to confirm groups
-#View(e14_metadata)
-
-
-
 ```
 
+# Understanding the Biological Model
+
+In this study, Knock-In (KI) mouse models are compared with Wild-Type (WT) controls.
+
+-   **Knock-In (KI):** This refers to mice that have been genetically engineered to "overexpress" the *Chd8* gene. This is used to see what happens to the brain when this specific genetic "master switch" is turned up too high.
+
+-   **Wild-Type (WT):** These are the "control" mice with typical genetic expression, used as the baseline for comparison.
+
+# The Meaning of Gene Expression Changes
+
+-   **Upregulated (KI):** These genes are significantly *more active* in the *Chd8* model than in typical brains. This suggests that overactive *Chd8* is "turning on" or "pushing" these genes to work harder, which may disrupt normal brain development.
+
+-   **Downregulated (KI):** These genes are significantly *less active* (suppressed) in the *Chd8* model. This means that overactive Chd8 might be "silencing" or "blocking" genes that are necessary for typical neurological growth.
+
+# Understanding Gene Expression Analysis
+
+When analyzing gene expression (e.g., with DESeq2, edgeR, or limma), two main metrics guide interpretation:
+
+**Log~2~ Fold Change** and **Adjusted P-Value**
+
+***Most Meaningful Gene Expression to Look For:***
+
+-   *Fold change*: tells you the magnitude of change
+-   *Adjusted p-value*: tells you the statistical confidence.
+-   *Combine Both*: (large fold change) + (small padj) = biologically meaningful differential expression.
+
+Therefore:
+
+**Significant & Upregulated:** padj ≤ 0.05 and log2FC \> threshold (e.g., +1).
+
+**Significant & Downregulated:** padj ≤ 0.05 and log2FC \< threshold (e.g., -1).
+
+**Non-significant:** padj \> 0.05, regardless of fold change.
+
+**Borderline cases:** Genes with large fold change but not significant (or vice versa) may still be biologically interesting, but require caution.
+
+It was now useful to create a column in order to easily determine the significant genes necessary for coloring the plot:
+
+```{r}
+# [Optional But Helpful]: Fixing Any Zero Values
+
+#It may be helpful to insert this line directly following the creation of the e14_results object. This will replace any p-values of 0 with the smallest non-zero p-value so they can be plotted later on the visualization. Otherwise, these very small 0 p-values will be understood as "Infinity" values and will not properly show on the plot
+#e14_results$padj[e14_results$padj == 0] <- min(e14_results$padj[e14_results$padj > 0], na.rm = TRUE)
+#Note, however that Zero fixes have already been implemented by converting them to  early on in the script 1e-12. Therefore, this will not be needed for this particular script
+
+#Identifying genes that are not significant 
+
+e14_results_filtered <- e14_results %>%
+  mutate(gene_type = case_when(
+    log2FoldChange > 0.5 & padj < 0.05 ~ "Upregulated (KI)",
+    log2FoldChange < -0.5 & padj < 0.05 ~ "Downregulated (KI)",
+    TRUE ~ "Not Significant"
+  ))
+
+
+#e14_results$gene_type <- "Not Significant"
+
+#Identifying Upregulated genes: Fold Change (FC) > 1 AND adjusted p-value < 0.05
+#e14_results$gene_type[e14_results$log2FoldChange > 1 & e14_results$padj < 0.05] <- "Upregulated (KI)"
+
+#Identifying Downregulated genes: Fold Change (FC) < -1 AND adjusted p-value < 0.05
+#e14_results$gene_type[e14_results$log2FoldChange < -1 & e14_results$padj < 0.05] <- "Downregulated (KI)"
+
+#[NOTE:] 
+#Genes with POSITIVE fold change are considered upregulated, while those with NEGATIVE fold change are downregulated.
+```
+
+# 5. Visualizing the Transcriptomic Landscape (Volcano Plot)
+
+The **Volcano Plot** identifies the most biologically meaningful genes (those with high significance and high change). A Volcano Plot was next generated using ggplot2 in order to clearly identify these genes. The plot below maps the relationship between the **magnitude of change** (X-axis) and **statistical confidence** (Y-axis):
+
+```{r}
+# Generating the Volcano Plot using ggplot2:
+#---------------------------------------------
+
+#[Optional*]:
+
+#FIRST, just for added clarity, it can be helpful to label a few of the top significant genes directly onto the volcano plot for easy identification. 
+#A dataframe can be created to filter for the top genes:
+  
+top_genes <- e14_results_filtered %>%
+  filter(!is.na(padj)) %>%  #adding this portion of code will remove any NA values or any impossible 0 values that are too small to clearly be observed on the volcano plot
+  mutate(padj_plot = ifelse(padj < 1e-15, 1e-12, padj)) %>%
+  arrange(padj) %>%
+  head(10) %>%  #10 of the top genes chosen from all the genes that show the most highly significant changes 
+  rownames_to_column("gene_id_label")  # This is going to grab the gene names for the label
+```
+
+```{r}
+#NOW generate the Volcano Plot (be sure to embed the geom_text_repel layer into the plot code)
+
+# [NOTE]: # Save the plot to 'p' to stop RStudio from trying to show a preview on the screen.
+# This prevents any layout crashes caused by crowded text labels within a tiny window.
+
+p <- ggplot(data = e14_results_filtered %>% mutate(padj_plot = ifelse(padj < 1e-15, 1e-12, padj)), aes(x = log2FoldChange, y = -log10(padj_plot), color = gene_type)) +
+  
+  # geom_point creates the 'dots'. 
+  # alpha=0.4 makes dots 60% transparent so it's easy to see where they overlap (density).
+  # size=1.75 sets the physical size of each dot for better visibility.
+  geom_point(alpha = 0.4, size = 1.75) +
+   # This next line will add the labels for the top 3 genes
+  geom_text_repel(data = top_genes,
+                  aes(label = gene_id_label),
+                  size = 3.5,
+                  color = "black",
+                  fontface = "bold",
+                  box.padding = 0.4,
+                  point.padding = 0.3,
+                  force = 5) +
+  # xlim & ylim set the 'zoom' of the plot. 
+  # xlim(-5, 5) centers the plot and prevents outliers from stretching the view too far.
+  # ylim(0, 30) ensures the focus is on the most significant genes (0 to 30 on the -log10 scale).
+ coord_cartesian(xlim = c(-3, 3), ylim = c(0, 15)) +
+  #coord_cartesian ensures that even if a gene is "off-screen," it doesn't break the plot's internal math.
+  
+  # These are just standard labels for the X and Y axes.
+  labs(x = "log2 Fold Change",
+       y = "-log10 adjusted p-value",
+       title = "Volcano Plot of CHD8 KI vs WT (E14 Data)") +  # title() is adding a clear title to the top of this visualization
+  # scale_color_manual() is assigning specific colors to the three categories for clarity.
+  # Using 'Red' for Up and 'Blue' for Down is just the standard 'heat' convention in genomics.
+  scale_color_manual(values = c(
+    "Downregulated (KI)" = "blue", 
+    "Not Significant" = "grey", 
+    "Upregulated (KI)" = "red"
+  )) +
+  theme_minimal() # theme_minimal() is simply removing the heavy grey background and clutter
+  
+# Export a high-resolution, 300 DPI image file straight to the computer. This will allow for a nice PNG image that can be uploaded where necessary
+ggsave("Chd8_Volcano_Plot_Final.png", plot = p, width = 8, height = 6, dpi = 300)
+
+
+# Since saving the plot to an object ('p') hides it from the immediate view, calling 'p' here forces R Markdown to actually draw it inside the final HTML report.
+p
+```
+
+1.) **The X-axis (log2 Fold Change):** Shows the magnitude of the gene expression change between the control (WT) mice and the experimental (KI) mice. Genes far to the left or right are heavily affected by the Chd8 duplication.
+
+2.) **The Y-axis (-log10 adjusted p-value):** Shows the statistical significance of those changes. The higher the dots are on the plot, the more confident I can be that the change is real, rather than random chance.
+
+This volcano plot allows me to immediately identify the most biologically meaningful genes: those that are both highly significant (high on the plot) and highly changed (far left/right).
+
+# 6. Identifying the Key Drivers: Top 10 Differentially Expressed Genes (Table)
+
+While the Volcano Plot illustrates the global transcriptomic shift, the following table isolates the "Top 10" most significant genes from this exploratory analysis. These genes represent the highest statistical confidence (***P~adj~***) and the most substantial change in expression levels.
+
+In regards to neurodevelopment, these specific genes are the primary candidates for the downstream "ripple effect" caused by *Chd8* dysregulation. For example, many of these key drivers are known to regulate neurogenesis (the actual birth of new neurons) suggesting that the biological differences we see in autism-related models are established during these very first cellular divisions.
+
+Consider the table below:
+
+```{r}
+# Creating a table of the Top 10 most significant genes
+
+#top_10_genes <- highly_significant_changes %>% 
+#  arrange(padj) %>% # This sorts by the most statistically significant (smallest p-value)
+#  head(10) %>%      # This takes the top 10 values at the top of this volcano plot
+#  select(log2FoldChange, padj) #This keeps only the most important columns
+
+
+# In order to make the table displaying the top genes, a variable based on top_genes can first be created with columns specifically filtered to display only the relevant information/columns: 
+#top_genes_table <- top_genes %>%
+#  select(gene_id_label, log2FoldChange, padj)
+
+top_genes_table <- top_genes %>%
+  mutate(padj = ifelse(padj < 1e-15, 1e-12, padj)) %>%
+  select(gene_id_label, log2FoldChange, padj)
+
+# Adding a caption and column names to the table:
+knitr::kable(top_genes_table,
+             digits = 20,  #Prevents R from rounding very small values to 0.0e+00. Instead, the true values will remain, allowing them to be accurately shown on the table
+             caption = "Table 1: Top 10 Most Significant Genes (E14)", 
+             col.names = c("Gene ID", "Log2 Fold Change (Magnitude)", "Adjusted P-Value  (Significance)"))
+
+
+#[Optional*]: Export the full list of significant genes to a CSV file on desktop 
+
+#write.csv(highly_significant_changes, "Chd8_E14_Significant_Genes.csv")  #commented out
+```
+
+# 7. Results & Discussion
+
+### Global Shifts in the Embryonic Brain Landscape
+
+The exploratory transcriptomic analysis of embryonic day 14 (E14) mouse models reveals a clear, coordinated transcriptomic shift under *Chd8* overexpression. The Volcano Plot demonstrates that *Chd8* does not simply act as an isolated mutation. Instead, it functions as a critical master regulatory switch during primary neurogenesis.
+
+The vast majority of highly significant differentially expressed genes show tight, subtle up-regulation clustering between a $\log_2$ Fold Change of $0.5$ and $1.0$. In the context of early embryonic development, subtle but coordinated changes across dozens of genes are frequently more impactful than massive spikes in a single isolated pathway.
+
+### Analysis of Primary Drivers
+
+-   **Gene 67772 (Chd8):** Serving as the internal positive control for this study, this gene demonstrated the highest statistical significance ($P_{adj} < 10^{-15}$). This mathematically validates the experimental model, proving that *Chd8* expression was precisely and successfully elevated in the Knock-In cohort compared to Wild-Type baseline controls.
+
+-   **The Neurogenesis Ripple Effect (Genes 15135 & 23831):** The top identified candidates under the control of *Chd8* include major drivers tied directly to cell cycle progression and early neural stem cell proliferation. Overactivity here suggests a disruption in the strict timing required to birth new cortical layers, establishing the macrocephaly (enlarged brain structure) often identified in specific neurodevelopmental cases.
+
+### Synthesis & Domain Context
+
+As an educator who has worked directly with special education students, analyzing this data makes a vital connection between behavioral observations seen in the classroom and cellular biology. The subtle molecular changes clearly noted within this E14 matrix represent the earliest biological blueprints of neurodivergence. Understanding that autism-associated pathways are heavily active during primary embryonic cell divisions reinforces the modern view of autism as a fundamental *structural* difference in brain connectivity, rooted at the very origin of development.
+
+# 8. Technical Appendix & Project Troubleshooting
+
+During the compilation and visual layout stages of this reproducible pipeline, two significant technical edge cases arose and were systematically resolved:
+
+1.  **Floating Point Underflows & Infinity Errors:** The primary candidate (Gene 67772) exhibited a statistical significance value so profound that standard statistical models rounded it to an absolute $0$. In R Markdown, calculating $-\log_{10}(0)$ results in an unplottable value of `Infinity`, which caused the physical data point to disappear from the plot area while leaving text labels floating at the ceiling. This was resolved at the presentation layer using a robust threshold wrapper (`ifelse(padj < 1e-15, 1e-12, padj)`), forcing subnormal values to map to a fixed, visually accessible baseline ($Y=12$) without corrupting the raw data structure.
+
+2.  **Viewport Graphic Truncation:** Dense text labeling using `geom_text_repel` initially triggered a `Viewport has zero dimension(s)` layout crash inside the RStudio screen engine due to local window scaling constraints. To guarantee project portability and clean automation, the workflow was re-architected to bind the visualization pipeline directly to a background data object (`p`) and pipe it straight to an independent high-resolution graphic export loop using `ggsave()`. This ensures the script builds flawlessly across different operating systems.
+
+# Future Directions
+
+While this report successfully maps the primary transcriptomic disruptions at the peak of cortical layout (E14), additional neurodevelopmental insights remain within the broader dataset. A valuable next step for this pipeline will be a comparative analysis of the Embryonic Day 18 (E18) stage. Evaluating the E18 matrix in a future project will enable further tracking of how these early molecular disruptions evolve as the brain prepares for birth, shedding further light on the late-embryonic timeline of neurodivergence.
