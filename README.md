@@ -1,7 +1,6 @@
 #  Early Neurodevelopmental Drivers of Autism: A Transcriptomic Analysis of Chd8 Dysregulation
 
-[![R-Lang](https://shields.io)](https://r-project.org)
-[![Analysis](https://shields.io)](https://github.com)
+
 
 ##  Project Overview
 This project performs an exploratory transcriptomic analysis of the ***Chd8*** gene, a high-confidence master risk factor strongly linked to Autism Spectrum Disorder (ASD). Utilizing public expression data from the Gene Expression Omnibus (**GEO: GSE263334**), this pipeline isolates the earliest molecular signatures of altered cortical development. 
