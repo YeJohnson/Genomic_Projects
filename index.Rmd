@@ -461,6 +461,6 @@ During the compilation and visual layout stages of this reproducible pipeline, t
 
 2.  **Viewport Graphic Truncation:** Dense text labeling using `geom_text_repel` initially triggered a `Viewport has zero dimension(s)` layout crash inside the RStudio screen engine due to local window scaling constraints. To guarantee project portability and clean automation, the workflow was re-architected to bind the visualization pipeline directly to a background data object (`p`) and pipe it straight to an independent high-resolution graphic export loop using `ggsave()`. This ensures the script builds flawlessly across different operating systems.
 
-# Future Directions
+# 9. Future Directions
 
 While this report successfully maps the primary transcriptomic disruptions at the peak of cortical layout (E14), additional neurodevelopmental insights remain within the broader dataset. A valuable next step for this pipeline will be a comparative analysis of the Embryonic Day 18 (E18) stage. Evaluating the E18 matrix in a future project will enable further tracking of how these early molecular disruptions evolve as the brain prepares for birth, shedding further light on the late-embryonic timeline of neurodivergence.
