@@ -17,7 +17,10 @@ output:
 
 As a professional with direct experience in the special education system, I am utilizing exploratory genomic analysis to bridge the gap between classroom observations and molecular research. This project focuses on *Chd8*, a master regulator and high-risk gene heavily linked to Autism Spectrum Disorder (ASD). By analyzing how *Chd8* overexpression alters the transcriptomic "instruction manual" of the developing brain, this project aims to uncover the molecular foundations of neurodiversity.
 
-In order to establish a clear link between computational data engineering and neurodevelopmental biology, this exploratory analysis is structured around three core methodology choices:
+Setting up this exploratory analysis required navigating several critical project parameters: selecting a precise developmental timeframe from the available data, mapping how a single control gene influences an entire network of downstream targets, and isolating clear visual signals from thousands of data points. 
+
+In order to establish a clear link between computational data engineering and neurodevelopmental biology, this exploratory analysis is structured around four core methodology choices that address these exact challenges:
+
 
 ### A. Why the E14 Stage Specifically?
 
