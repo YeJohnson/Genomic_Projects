@@ -6,6 +6,9 @@
 ##  Project Overview
 This project performs an exploratory transcriptomic analysis of the ***Chd8*** gene, a high-confidence master risk factor strongly linked to Autism Spectrum Disorder (ASD). Utilizing public expression data from the Gene Expression Omnibus (**GEO: GSE263334**), this pipeline isolates the earliest molecular signatures of altered cortical development. 
 
+**Rather than processing raw FASTQ sequencing files from scratch, this workflow ingests the primary researchers' pre-calculated DESeq2 results matrix.** This downstream entry point ensures absolute alignment with the peer-reviewed study's statistical baselines while focusing the engineering scope on robust data cleaning, handling computational edge cases, and custom visualization.
+
+
 As a professional with direct experience in the **special education system**, my goal was to bridge the gap between classroom observations and molecular biology. By evaluating how *Chd8* overexpression alters the "genetic instruction manual" during a critical developmental window, this workflow seeks to illuminate the biological foundation that shapes diverse learning and behavioral profiles.
 
 ---
